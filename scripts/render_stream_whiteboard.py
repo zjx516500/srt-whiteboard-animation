@@ -115,6 +115,7 @@ class RegionStreamRenderer:
                 hand_data = sr._procedural_tip(cfg.target_hand_height)
                 ax, ay = 0.5, 0.70
             self.tip = sr.TipOverlay(hand_data[0], hand_data[1], tip_anchor_x=ax, tip_anchor_y=ay)
+        self._has_written_frame = False
 
     # 采样原图四角，把接近背景色的像素替换为画布底色
     def _match_original_background(self) -> None:
@@ -224,10 +225,20 @@ class RegionStreamRenderer:
             return
         n = len(samples)
         if n == 0:
-            for _ in range(frames):
+            start = 0
+            if not self._has_written_frame:
+                writer.write(self.drawn.astype(np.uint8))
+                self._has_written_frame = True
+                start = 1
+            for _ in range(start, frames):
                 writer.write(self._snapshot_with_tip(self.out_w // 2, self.out_h // 2))
             return
         idx_for_frame = _frame_progress_indices(n, frames)
+        if not self._has_written_frame:
+            # t=0 必须是干净纸张；从第二帧才开始落墨并显示绘制手。
+            writer.write(self.drawn.astype(np.uint8))
+            self._has_written_frame = True
+            idx_for_frame = idx_for_frame[1:]
         last: int | None = None
         for si in idx_for_frame:
             if last is None:
@@ -366,6 +377,7 @@ class RegionStreamRenderer:
             snap = self.drawn.astype(np.uint8)
             for _ in range(n):
                 writer.write(snap)
+            self._has_written_frame = True
             cur_ms += n * ms_per_frame
 
         try:
@@ -428,10 +440,19 @@ class RegionStreamRenderer:
             return
         n = len(samples)
         if n == 0:
-            for _ in range(frames):
+            start = 0
+            if not self._has_written_frame:
+                writer.write(self.drawn.astype(np.uint8))
+                self._has_written_frame = True
+                start = 1
+            for _ in range(start, frames):
                 writer.write(self._snapshot_with_tip(self.out_w // 2, self.out_h // 2))
             return
         idx_for_frame = _frame_progress_indices(n, frames)
+        if not self._has_written_frame:
+            writer.write(self.drawn.astype(np.uint8))
+            self._has_written_frame = True
+            idx_for_frame = idx_for_frame[1:]
         cells_done = 0
         last: int | None = None
         for si in idx_for_frame:
